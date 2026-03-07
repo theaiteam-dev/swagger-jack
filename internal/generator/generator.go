@@ -74,7 +74,7 @@ func Generate(spec *model.APISpec, name string, outputDir string) error {
 		}
 
 		for _, cmd := range resource.Commands {
-			verbSrc, err := GenerateVerbCmd(resource, cmd)
+			verbSrc, err := GenerateVerbCmd(resource, cmd, name)
 			if err != nil {
 				return fmt.Errorf("generating verb command %q for resource %q: %w", cmd.Name, resource.Name, err)
 			}

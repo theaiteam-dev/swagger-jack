@@ -2,14 +2,16 @@
 package generator
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/queso/swagger-jack/internal/model"
 )
 
 // clientTemplate is the Go source template for the generated HTTP client.
-// It is a static boilerplate file; the spec is used only for the default base URL.
+// It embeds the spec's BaseURL as DefaultBaseURL and falls back to it in NewClient.
 const clientTemplate = `package client
 
 import (
@@ -22,6 +24,9 @@ import (
 	"strings"
 )
 
+// DefaultBaseURL is the default API base URL embedded from the OpenAPI spec.
+const DefaultBaseURL = {{goString .BaseURL}}
+
 // Client holds the configuration for making authenticated HTTP requests.
 type Client struct {
 	BaseURL    string
@@ -30,7 +35,11 @@ type Client struct {
 }
 
 // NewClient constructs a Client with the given baseURL and token.
+// When baseURL is empty, DefaultBaseURL is used.
 func NewClient(baseURL, token string) *Client {
+	if baseURL == "" {
+		baseURL = DefaultBaseURL
+	}
 	return &Client{
 		BaseURL:    baseURL,
 		Token:      token,
@@ -111,17 +120,37 @@ func (c *Client) Do(method, path string, pathParams map[string]string, queryPara
 }
 `
 
+// clientTemplateData holds the values interpolated into clientTemplate.
+type clientTemplateData struct {
+	BaseURL string
+}
+
 // GenerateClient returns the Go source code for the generated project's HTTP
-// client (internal/client.go). The spec parameter may be used to embed a
-// default base URL into the generated file in the future; currently the client
-// is pure boilerplate.
+// client (internal/client.go). It embeds spec.BaseURL as DefaultBaseURL and
+// generates a NewClient that falls back to it when an empty string is passed.
 func GenerateClient(spec *model.APISpec) (string, error) {
 	if spec == nil {
 		return "", fmt.Errorf("spec must not be nil")
 	}
 
-	_ = spec // reserved for future use (e.g., embedding default BaseURL)
+	funcMap := template.FuncMap{
+		"goString": func(s string) string {
+			return fmt.Sprintf("%q", s)
+		},
+	}
+	tmpl, err := template.New("client").Funcs(funcMap).Parse(clientTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parsing client template: %w", err)
+	}
 
-	src := strings.TrimLeft(clientTemplate, "\n")
-	return src, nil
+	data := clientTemplateData{
+		BaseURL: spec.BaseURL,
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("executing client template: %w", err)
+	}
+
+	return strings.TrimLeft(buf.String(), "\n"), nil
 }

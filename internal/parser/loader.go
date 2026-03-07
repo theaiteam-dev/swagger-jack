@@ -75,7 +75,7 @@ func Load(path string) (*Result, error) {
 	// Build resources from paths (group by first path segment).
 	spec.Resources = buildResources(raw.Paths)
 
-	return &Result{Spec: spec, RawJSON: data}, nil
+	return &Result{Spec: spec, RawJSON: resolved}, nil
 }
 
 // resolveSecurityScheme maps a raw OpenAPI security scheme to model.SecurityScheme.

@@ -146,7 +146,16 @@ go build -o swaggerjack .
 
 ## Status
 
-Milestone 1 (MVP) complete. See [docs/SPEC.md](docs/SPEC.md) for full design spec and roadmap.
+**Milestone 1 (MVP) complete**. Fully functional code generator with:
+- OpenAPI 3.0 parser (JSON/YAML, local files and URLs)
+- Internal CLI model builder with resource/command/flag extraction
+- Complete Cobra CLI code generation with HTTP client wiring
+- Bearer token authentication via env vars
+- JSON output mode and pretty-printing
+- `swaggerjack init`, `validate`, `preview` commands
+- 5 integration tests + comprehensive unit tests
+
+See [docs/SPEC.md](docs/SPEC.md) for full design spec and roadmap.
 
 ## License
 

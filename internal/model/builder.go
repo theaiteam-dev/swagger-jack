@@ -3,14 +3,17 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 )
 
 // rawOperation is a minimal representation of an OpenAPI operation.
 type rawOperation struct {
-	OperationID string `json:"operationId"`
-	Summary     string `json:"summary"`
+	OperationID string          `json:"operationId"`
+	Summary     string          `json:"summary"`
+	Parameters  json.RawMessage `json:"parameters"`
+	RequestBody json.RawMessage `json:"requestBody"`
 }
 
 // RawJSONProvider is implemented by types that expose the raw spec JSON bytes.
@@ -74,6 +77,34 @@ func buildFromRaw(data []byte) ([]Resource, error) {
 				Path:        path,
 				Description: op.Summary,
 			}
+
+			// Extract path/query params.
+			if len(op.Parameters) > 0 {
+				var parameters []interface{}
+				if err := json.Unmarshal(op.Parameters, &parameters); err == nil {
+					args, queryFlags, err := ExtractParams(nil, parameters)
+					if err != nil {
+						log.Printf("ExtractParams for %s %s: %v", method, path, err)
+					} else {
+						cmd.Args = args
+						cmd.Flags = append(cmd.Flags, queryFlags...)
+					}
+				}
+			}
+
+			// Extract body flags.
+			if len(op.RequestBody) > 0 {
+				var requestBody map[string]interface{}
+				if err := json.Unmarshal(op.RequestBody, &requestBody); err == nil {
+					bodyFlags, err := ExtractBodyFlags(requestBody)
+					if err != nil {
+						log.Printf("ExtractBodyFlags for %s %s: %v", method, path, err)
+					} else {
+						cmd.Flags = append(cmd.Flags, bodyFlags...)
+					}
+				}
+			}
+
 			byName[resourceName] = append(byName[resourceName], &cmdEntry{
 				cmd:    cmd,
 				verb:   verb,

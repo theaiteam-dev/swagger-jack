@@ -93,7 +93,7 @@ func TestGenerateVerbCmd_ArgsWiring(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "cobra.ExactArgs(1)",
@@ -113,7 +113,7 @@ func TestGenerateVerbCmd_ZeroArgs(t *testing.T) {
 		Args:       []model.Arg{},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 
 	hasZeroArgs := strings.Contains(src, "cobra.ExactArgs(0)") ||
@@ -151,7 +151,7 @@ func TestGenerateVerbCmd_FlagTypes(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "StringVar", "should register string flags with StringVar")
@@ -185,7 +185,7 @@ func TestGenerateVerbCmd_RequiredFlags(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "MarkFlagRequired",
@@ -226,7 +226,7 @@ func TestGenerateVerbCmd_ValidGoSyntax(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, src, "generated source should not be empty")
 
@@ -252,7 +252,7 @@ func TestGenerateVerbCmd_UseField(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd)
+	src, err := generator.GenerateVerbCmd(res, cmd, "")
 	require.NoError(t, err)
 
 	// Use should start with the command verb name

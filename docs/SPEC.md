@@ -306,16 +306,16 @@ myapi documents upload --file ./report.pdf --name "Q4 Report"
 
 ## Implementation Plan
 
-### Milestone 1: Core Pipeline (MVP)
+### Milestone 1: Core Pipeline (MVP) — ✓ COMPLETE
 
-- [ ] OpenAPI 3.0 JSON parser
-- [ ] Internal model builder (resources, commands, flags)
-- [ ] Go code generator with Cobra templates
-- [ ] Basic auth (Bearer token via env var)
-- [ ] JSON output mode
-- [ ] `swaggerjack init` command
+- [x] OpenAPI 3.0 JSON parser
+- [x] Internal model builder (resources, commands, flags)
+- [x] Go code generator with Cobra templates
+- [x] Basic auth (Bearer token via env var)
+- [x] JSON output mode
+- [x] `swaggerjack init` command
 
-**Validation target**: Generate a working CLI from the Dittofeed OpenAPI spec.
+**Validation target**: Generate a working CLI from the Dittofeed OpenAPI spec. ✓ Completed with full HTTP client wiring, RunE handlers, conditional imports, and integration tests.
 
 ### Milestone 2: Rich Features
 
