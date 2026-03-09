@@ -115,6 +115,79 @@ func TestGenerate_MainGoValidGoSyntax(t *testing.T) {
 	assert.NoError(t, parseErr, "generated main.go should be valid Go syntax:\n%s", string(data))
 }
 
+// TestGenerate_NameValidation_InvalidCharacters verifies that Generate rejects
+// names containing characters that would produce invalid shell environment
+// variable names (e.g. @, !, (, ), space, backtick). Such characters survive
+// cliNameToEnvPrefix unchanged and cause auth tokens to be silently unreadable.
+func TestGenerate_NameValidation_InvalidCharacters(t *testing.T) {
+	invalidNames := []string{
+		"my.api@v1", // @ is invalid
+		"my-cli!",   // ! is invalid
+		"my(cli)",   // parentheses are invalid
+		"my cli",    // space is invalid
+		"my`cli",    // backtick is invalid
+		"cli#1",     // # is invalid
+		"cli$name",  // $ is invalid
+		"cli%name",  // % is invalid
+		"cli^name",  // ^ is invalid
+		"cli&name",  // & is invalid
+		"cli*name",  // * is invalid
+		"cli=name",  // = is invalid
+		"cli+name",  // + is invalid
+		"cli[name]", // brackets are invalid
+		"cli{name}", // braces are invalid
+		"cli|name",  // pipe is invalid
+		"cli\\name", // backslash is invalid
+		"cli;name",  // semicolon is invalid
+		"cli:name",  // colon is invalid
+		"cli'name",  // single quote is invalid
+		`cli"name`,  // double quote is invalid
+		"cli<name",  // angle bracket is invalid
+		"cli>name",  // angle bracket is invalid
+		"cli,name",  // comma is invalid
+		"cli?name",  // question mark is invalid
+		"cli/name",  // slash is invalid
+		"cli~name",  // tilde is invalid
+		"cli`name",  // backtick is invalid
+	}
+
+	for _, name := range invalidNames {
+		t.Run(name, func(t *testing.T) {
+			outputDir := t.TempDir()
+			err := generator.Generate(testSpec(), name, outputDir)
+			assert.Error(t, err,
+				"Generate should reject name %q containing an invalid character", name)
+			assert.Contains(t, err.Error(), "invalid character",
+				"error message should mention 'invalid character' for name %q", name)
+		})
+	}
+}
+
+// TestGenerate_NameValidation_ValidNames verifies that Generate accepts names
+// containing only alphanumerics, hyphens, and dots — the allowed character set
+// for shell-safe env var prefixes and go.mod module paths.
+func TestGenerate_NameValidation_ValidNames(t *testing.T) {
+	validNames := []string{
+		"myapp",
+		"my-app",
+		"my.app",
+		"my-api.v1",
+		"MyApp",
+		"myapp123",
+		"my-api-v2",
+		"my.api.v2",
+	}
+
+	for _, name := range validNames {
+		t.Run(name, func(t *testing.T) {
+			outputDir := t.TempDir()
+			err := generator.Generate(testSpec(), name, outputDir)
+			assert.NoError(t, err,
+				"Generate should accept valid name %q", name)
+		})
+	}
+}
+
 // TestGenerate_ErrorOnBadOutputDir verifies that Generate returns an error
 // when the output directory cannot be created (e.g., a file blocks the path).
 func TestGenerate_ErrorOnBadOutputDir(t *testing.T) {

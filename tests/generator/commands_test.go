@@ -367,8 +367,10 @@ func TestStrconvForIntFlags(t *testing.T) {
 
 // TestNoJsonImportForNoBodyFlags verifies that when a command has no body flags,
 // the generated file does NOT import "encoding/json".
-// FAILS: current buildImports always includes "encoding/json" unconditionally.
-func TestNoJsonImportForNoBodyFlags(t *testing.T) {
+// TestJsonImportForNoBodyFlagsWithCliName verifies that when cliName is set,
+// "encoding/json" IS imported even without body flags, because the unified
+// --json output path uses json.Unmarshal / json.MarshalIndent for all commands.
+func TestJsonImportForNoBodyFlagsWithCliName(t *testing.T) {
 	res := model.Resource{Name: "widgets"}
 	cmd := model.Command{
 		Name:       "list",
@@ -382,8 +384,8 @@ func TestNoJsonImportForNoBodyFlags(t *testing.T) {
 	src, err := generator.GenerateVerbCmd(res, cmd, "testcli")
 	require.NoError(t, err)
 
-	assert.NotContains(t, src, `"encoding/json"`,
-		"generated source should NOT import encoding/json when no body flags exist;\ngot:\n%s", src)
+	assert.Contains(t, src, `"encoding/json"`,
+		"generated source must import encoding/json (needed for unified --json output path)")
 }
 
 // TestJsonImportForBodyFlags verifies that when a command has body flags,
@@ -437,4 +439,56 @@ func TestStringSliceQueryFlagHandled(t *testing.T) {
 	hasBareSliceAssign := hasBareSliceVarDecl && hasDirectAssign
 	assert.False(t, hasBareSliceAssign,
 		"StringSlice query flag must not be assigned directly ([]string) into map[string]string;\ngot:\n%s", src)
+}
+
+// TestGenerateVerbCmdJsonFlagForQueryOnlyCommand verifies that commands with
+// only query flags (no body flags) still check the --json persistent flag in
+// their generated RunE, producing consistent output behaviour across all commands.
+func TestGenerateVerbCmdJsonFlagForQueryOnlyCommand(t *testing.T) {
+	res := model.Resource{Name: "widgets"}
+	cmd := model.Command{
+		Name:       "list",
+		HTTPMethod: "GET",
+		Path:       "/widgets",
+		Flags: []model.Flag{
+			{Name: "limit", Type: model.FlagTypeInt, Source: model.FlagSourceQuery},
+		},
+	}
+
+	src, err := generator.GenerateVerbCmd(res, cmd, "testcli")
+	require.NoError(t, err)
+
+	assert.Contains(t, src, `GetBool("json")`,
+		"commands without body flags must still check the --json persistent flag")
+}
+
+// TestCliNameToEnvPrefixViaGeneratedCode exercises the cliNameToEnvPrefix
+// conversion indirectly by checking that the generated RunE reads the expected
+// env var token name for various cliName inputs.
+func TestCliNameToEnvPrefixViaGeneratedCode(t *testing.T) {
+	res := model.Resource{Name: "items"}
+	cmd := model.Command{
+		Name:       "list",
+		HTTPMethod: "GET",
+		Path:       "/items",
+	}
+
+	tests := []struct {
+		cliName    string
+		wantEnvVar string
+	}{
+		{"my-cli", "MY_CLI_TOKEN"},
+		{"my-api.v1", "MY_API_V1_TOKEN"},
+		{"myapi", "MYAPI_TOKEN"},
+		{"api2cli", "API2CLI_TOKEN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cliName, func(t *testing.T) {
+			src, err := generator.GenerateVerbCmd(res, cmd, tt.cliName)
+			require.NoError(t, err)
+			assert.Contains(t, src, tt.wantEnvVar,
+				"generated code should read token from %s env var", tt.wantEnvVar)
+		})
+	}
 }

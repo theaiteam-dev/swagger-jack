@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // DefaultBaseURL is the default API base URL embedded from the OpenAPI spec.
@@ -43,7 +44,9 @@ func NewClient(baseURL, token string) *Client {
 	return &Client{
 		BaseURL:    baseURL,
 		Token:      token,
-		HTTPClient: &http.Client{},
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -95,7 +98,9 @@ func (c *Client) Do(method, path string, pathParams map[string]string, queryPara
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	// Inject Bearer token auth when a token is configured.
+	// FIXME(milestone-2): MVP only supports Bearer token auth via env var.
+	// API key (custom header) and Basic auth will be added in Milestone 2,
+	// driven by OpenAPI securitySchemes in the parsed spec.
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
@@ -113,7 +118,11 @@ func (c *Client) Do(method, path string, pathParams map[string]string, queryPara
 
 	// Return a descriptive error for non-2xx responses.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(responseBody))
+		bodyStr := string(responseBody)
+		if len(bodyStr) > 200 {
+			bodyStr = bodyStr[:200] + "... (truncated)"
+		}
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	return responseBody, nil

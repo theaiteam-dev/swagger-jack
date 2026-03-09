@@ -9,6 +9,34 @@ import (
 	"github.com/queso/swagger-jack/internal/model"
 )
 
+// codeWriter is a small helper for building indented Go source code.
+// indent controls the number of leading tabs prepended by line().
+type codeWriter struct {
+	sb     strings.Builder
+	indent int
+}
+
+// line writes a literal line to the builder, prefixed with w.indent tabs.
+// The string s is written as-is with no format expansion.
+func (w *codeWriter) line(s string) {
+	w.sb.WriteString(strings.Repeat("\t", w.indent))
+	w.sb.WriteString(s)
+	w.sb.WriteString("\n")
+}
+
+// linef writes a formatted line to the builder, prefixed with w.indent tabs.
+// The format string is expanded before writing.
+func (w *codeWriter) linef(format string, args ...interface{}) {
+	w.sb.WriteString(strings.Repeat("\t", w.indent))
+	fmt.Fprintf(&w.sb, format, args...)
+	w.sb.WriteString("\n")
+}
+
+// String returns the accumulated source text.
+func (w *codeWriter) String() string {
+	return w.sb.String()
+}
+
 // GenerateResourceCmd produces the source for cmd/<resource>.go, which
 // declares a Cobra group command for the given resource. All operations on
 // the resource are added as sub-commands of this group.
@@ -43,6 +71,10 @@ func init() {
 // flags. cliName is used to derive the token env var and the import path for
 // the internal client package.
 func GenerateVerbCmd(resource model.Resource, cmd model.Command, cliName string) (string, error) {
+	if cliName == "" {
+		return "", fmt.Errorf("cliName must not be empty: needed for client import path and auth env var generation")
+	}
+
 	useField := buildUseField(cmd)
 	argsExpr := buildArgsExpr(cmd.Args)
 	varName := sanitizeIdentifier(resource.Name) + capitalise(sanitizeIdentifier(cmd.Name)) + "Cmd"
@@ -98,13 +130,9 @@ func init() {
 
 // buildImports constructs the import block for the verb command file.
 func buildImports(cmd model.Command, cliName string) string {
-	hasBodyFlags := false
 	hasIntOrBoolQueryFlag := false
 	hasStringSliceQueryFlag := false
 	for _, f := range cmd.Flags {
-		if f.Source == model.FlagSourceBody {
-			hasBodyFlags = true
-		}
 		if f.Source == model.FlagSourceQuery {
 			switch f.Type {
 			case model.FlagTypeInt, model.FlagTypeBool:
@@ -116,7 +144,7 @@ func buildImports(cmd model.Command, cliName string) string {
 	}
 
 	var imports []string
-	if hasBodyFlags {
+	if cliName != "" {
 		imports = append(imports, `"encoding/json"`)
 	}
 	imports = append(imports, `"fmt"`, `"os"`)
@@ -135,29 +163,25 @@ func buildImports(cmd model.Command, cliName string) string {
 
 // buildRunEBody generates the RunE function body for the given command.
 func buildRunEBody(cmd model.Command, varName, cliName string) string {
-	var sb strings.Builder
+	w := &codeWriter{indent: 2}
 
 	// Read base URL from root persistent flags.
-	sb.WriteString("\t\tbaseURL, _ := cmd.Root().PersistentFlags().GetString(\"base-url\")\n")
+	w.line(`baseURL, _ := cmd.Root().PersistentFlags().GetString("base-url")`)
 
 	// Read token from env var.
 	tokenEnvVar := cliNameToEnvPrefix(cliName) + "_TOKEN"
-	fmt.Fprintf(&sb, "\t\ttoken := os.Getenv(%q)\n", tokenEnvVar)
+	w.linef("token := os.Getenv(%q)", tokenEnvVar)
 
 	// Create client.
-	if cliName != "" {
-		sb.WriteString("\t\tc := client.NewClient(baseURL, token)\n")
-	} else {
-		sb.WriteString("\t\t_, _ = baseURL, token // client not available without cliName\n")
-	}
+	w.line("c := client.NewClient(baseURL, token)")
 
 	// Build pathParams map.
-	sb.WriteString("\t\tpathParams := map[string]string{}\n")
+	w.line("pathParams := map[string]string{}")
 	for i, arg := range cmd.Args {
 		// The path param key is the original camelCase name from the path template.
-		// We derive it from the arg name by reversing kebab→camelCase is complex;
+		// We derive it from the arg name by reversing kebab->camelCase is complex;
 		// instead we use the arg name directly as the key since that's what client.Do needs.
-		fmt.Fprintf(&sb, "\t\tpathParams[%q] = args[%d]\n", argToPathKey(arg.Name), i)
+		w.linef("pathParams[%q] = args[%d]", argToPathKey(arg.Name), i)
 	}
 
 	// Build queryParams map — only if there are query flags.
@@ -178,7 +202,7 @@ func buildRunEBody(cmd model.Command, varName, cliName string) string {
 	}
 
 	if hasQueryFlags {
-		sb.WriteString("\t\tqueryParams := map[string]string{}\n")
+		w.line("queryParams := map[string]string{}")
 		for _, f := range cmd.Flags {
 			if f.Source != model.FlagSourceQuery {
 				continue
@@ -186,30 +210,30 @@ func buildRunEBody(cmd model.Command, varName, cliName string) string {
 			fVar := flagVarName(varName, f.Name)
 			switch f.Type {
 			case model.FlagTypeInt:
-				fmt.Fprintf(&sb, "\t\tqueryParams[%q] = strconv.Itoa(%s)\n", f.Name, fVar)
+				w.linef("queryParams[%q] = strconv.Itoa(%s)", f.Name, fVar)
 			case model.FlagTypeBool:
-				fmt.Fprintf(&sb, "\t\tqueryParams[%q] = strconv.FormatBool(%s)\n", f.Name, fVar)
+				w.linef("queryParams[%q] = strconv.FormatBool(%s)", f.Name, fVar)
 			case model.FlagTypeStringSlice:
 				// Read inline to avoid []string assignment into map[string]string.
-				fmt.Fprintf(&sb, "\t\t%s_vals, _ := cmd.Flags().GetStringArray(%q)\n", fVar, f.Name)
-				fmt.Fprintf(&sb, "\t\tqueryParams[%q] = strings.Join(%s_vals, \",\")\n", f.Name, fVar)
+				w.linef("%s_vals, _ := cmd.Flags().GetStringArray(%q)", fVar, f.Name)
+				w.linef("queryParams[%q] = strings.Join(%s_vals, \",\")", f.Name, fVar)
 			default:
-				fmt.Fprintf(&sb, "\t\tqueryParams[%q] = %s\n", f.Name, fVar)
+				w.linef("queryParams[%q] = %s", f.Name, fVar)
 			}
 		}
 	} else {
-		sb.WriteString("\t\tqueryParams := map[string]string{}\n")
+		w.line("queryParams := map[string]string{}")
 	}
 
 	// Build body map — only if there are body flags.
 	if hasBodyFlags {
-		sb.WriteString("\t\tbody := map[string]interface{}{}\n")
+		w.line("body := map[string]interface{}{}")
 		for _, f := range cmd.Flags {
 			if f.Source != model.FlagSourceBody {
 				continue
 			}
 			fVar := flagVarName(varName, f.Name)
-			fmt.Fprintf(&sb, "\t\tbody[%q] = %s\n", f.Name, fVar)
+			w.linef("body[%q] = %s", f.Name, fVar)
 		}
 	}
 
@@ -219,43 +243,38 @@ func buildRunEBody(cmd model.Command, varName, cliName string) string {
 		bodyArg = "body"
 	}
 
-	if cliName != "" {
-		fmt.Fprintf(&sb, "\t\tresp, err := c.Do(%q, %q, pathParams, queryParams, %s)\n",
-			cmd.HTTPMethod, cmd.Path, bodyArg)
-		sb.WriteString("\t\tif err != nil {\n")
-		sb.WriteString("\t\t\treturn err\n")
-		sb.WriteString("\t\t}\n")
-	} else {
-		// No client available; emit placeholder that still compiles.
-		sb.WriteString("\t\t_, _ = pathParams, queryParams\n")
-		if hasBodyFlags {
-			sb.WriteString("\t\t_ = body\n")
-		}
-		sb.WriteString("\t\treturn fmt.Errorf(\"no client configured\")\n")
-	}
+	w.linef("resp, err := c.Do(%q, %q, pathParams, queryParams, %s)",
+		cmd.HTTPMethod, cmd.Path, bodyArg)
+	w.line("if err != nil {")
+	w.indent++
+	w.line("return err")
+	w.indent--
+	w.line("}")
 
 	// Read --json flag and output.
-	if cliName != "" {
-		if hasBodyFlags {
-			sb.WriteString("\t\tjsonMode, _ := cmd.Root().PersistentFlags().GetBool(\"json\")\n")
-			sb.WriteString("\t\tif jsonMode {\n")
-			sb.WriteString("\t\t\tfmt.Printf(\"%s\\n\", string(resp))\n")
-			sb.WriteString("\t\t} else {\n")
-			sb.WriteString("\t\t\tvar out interface{}\n")
-			sb.WriteString("\t\t\tif err := json.Unmarshal(resp, &out); err != nil {\n")
-			sb.WriteString("\t\t\t\tfmt.Printf(\"%s\\n\", string(resp))\n")
-			sb.WriteString("\t\t\t} else {\n")
-			sb.WriteString("\t\t\t\tpretty, _ := json.MarshalIndent(out, \"\", \"  \")\n")
-			sb.WriteString("\t\t\t\tfmt.Printf(\"%s\\n\", string(pretty))\n")
-			sb.WriteString("\t\t\t}\n")
-			sb.WriteString("\t\t}\n")
-		} else {
-			sb.WriteString("\t\tfmt.Printf(\"%s\\n\", string(resp))\n")
-		}
-		sb.WriteString("\t\treturn nil\n")
-	}
+	w.line(`jsonMode, _ := cmd.Root().PersistentFlags().GetBool("json")`)
+	w.line("if jsonMode {")
+	w.indent++
+	w.line(`fmt.Printf("%s\n", string(resp))`)
+	w.indent--
+	w.line("} else {")
+	w.indent++
+	w.line("var out interface{}")
+	w.line("if err := json.Unmarshal(resp, &out); err != nil {")
+	w.indent++
+	w.line(`fmt.Printf("%s\n", string(resp))`)
+	w.indent--
+	w.line("} else {")
+	w.indent++
+	w.line(`pretty, _ := json.MarshalIndent(out, "", "  ")`)
+	w.line(`fmt.Printf("%s\n", string(pretty))`)
+	w.indent--
+	w.line("}")
+	w.indent--
+	w.line("}")
+	w.line("return nil")
 
-	return sb.String()
+	return w.String()
 }
 
 // cliNameToEnvPrefix converts a cliName (e.g. "my-cli") to an env var prefix
@@ -264,8 +283,12 @@ func cliNameToEnvPrefix(cliName string) string {
 	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(cliName))
 }
 
-// argToPathKey converts a kebab-case arg name back to the camelCase path param
-// key used in the URL template (e.g. "user-id" → "userId").
+// argToPathKey converts a kebab-case arg name back to the camelCase path
+// parameter key used in the OpenAPI URL template. The model builder converts
+// OpenAPI path params like {userId} to kebab-case arg names like "user-id".
+// This function reverses that transformation so the generated RunE can look
+// up the correct path placeholder when calling client.Do().
+// e.g. "user-id" -> "userId", "pet-id" -> "petId"
 func argToPathKey(name string) string {
 	parts := strings.Split(name, "-")
 	if len(parts) == 1 {

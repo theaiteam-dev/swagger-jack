@@ -93,7 +93,7 @@ func TestGenerateVerbCmd_ArgsWiring(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "cobra.ExactArgs(1)",
@@ -113,7 +113,7 @@ func TestGenerateVerbCmd_ZeroArgs(t *testing.T) {
 		Args:       []model.Arg{},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 
 	hasZeroArgs := strings.Contains(src, "cobra.ExactArgs(0)") ||
@@ -151,7 +151,7 @@ func TestGenerateVerbCmd_FlagTypes(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "StringVar", "should register string flags with StringVar")
@@ -185,7 +185,7 @@ func TestGenerateVerbCmd_RequiredFlags(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 
 	assert.Contains(t, src, "MarkFlagRequired",
@@ -226,7 +226,7 @@ func TestGenerateVerbCmd_ValidGoSyntax(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 	require.NotEmpty(t, src, "generated source should not be empty")
 
@@ -252,7 +252,7 @@ func TestGenerateVerbCmd_UseField(t *testing.T) {
 		},
 	}
 
-	src, err := generator.GenerateVerbCmd(res, cmd, "")
+	src, err := generator.GenerateVerbCmd(res, cmd, "mycli")
 	require.NoError(t, err)
 
 	// Use should start with the command verb name
@@ -260,4 +260,23 @@ func TestGenerateVerbCmd_UseField(t *testing.T) {
 	// Positional arg placeholders should be present
 	assert.Contains(t, src, "owner", "Use field should include arg placeholder for owner")
 	assert.Contains(t, src, "repo", "Use field should include arg placeholder for repo")
+}
+
+// TestGenerateVerbCmd_EmptyCLIName verifies that GenerateVerbCmd returns an
+// error immediately when cliName is empty, instead of silently generating
+// broken runtime code.
+func TestGenerateVerbCmd_EmptyCLIName(t *testing.T) {
+	res := model.Resource{
+		Name: "users",
+	}
+	cmd := model.Command{
+		Name:       "list",
+		HTTPMethod: "GET",
+		Path:       "/users",
+	}
+
+	_, err := generator.GenerateVerbCmd(res, cmd, "")
+	assert.Error(t, err, "empty cliName should return an error")
+	assert.Contains(t, err.Error(), "cliName must not be empty",
+		"error message should clearly explain the requirement")
 }

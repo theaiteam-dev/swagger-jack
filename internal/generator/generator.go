@@ -29,11 +29,14 @@ func Generate(spec *model.APISpec, name string, outputDir string) error {
 		return fmt.Errorf("name must not be empty")
 	}
 
-	// Validate name contains no characters that would produce an invalid go.mod
-	// or Go source file (whitespace, backtick).
+	// Validate name contains only characters safe for shell environment variable
+	// names and go.mod module paths: alphanumerics, hyphens, and dots.
+	// Characters like @, (, ), ! would pass through cliNameToEnvPrefix unchanged
+	// and produce invalid shell variable names (e.g. "my.api@v1" → "MY_API@V1"),
+	// causing auth tokens to be silently unreadable.
 	for _, r := range name {
-		if r == ' ' || r == '\n' || r == '\r' || r == '\t' || r == '`' {
-			return fmt.Errorf("name contains invalid character: %q", r)
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '.' {
+			return fmt.Errorf("name %q contains invalid character %q: only alphanumerics, hyphens, and dots are allowed", name, r)
 		}
 	}
 
