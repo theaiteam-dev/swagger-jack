@@ -175,7 +175,7 @@ func resolveRefs(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("spec root must be a JSON object")
 	}
 
-	resolved, err := walkResolve(rootMap, rootMap)
+	resolved, err := walkResolve(rootMap, rootMap, make(map[string]bool))
 	if err != nil {
 		return nil, err
 	}
@@ -184,8 +184,9 @@ func resolveRefs(data []byte) ([]byte, error) {
 }
 
 // walkResolve recursively walks the node, replacing any {"$ref": "#/..."} objects
-// with the referenced value looked up in root.
-func walkResolve(node interface{}, root map[string]interface{}) (interface{}, error) {
+// with the referenced value looked up in root. visiting tracks refs currently on
+// the call stack to break circular references.
+func walkResolve(node interface{}, root map[string]interface{}, visiting map[string]bool) (interface{}, error) {
 	switch v := node.(type) {
 	case map[string]interface{}:
 		if ref, ok := v["$ref"]; ok {
@@ -193,16 +194,23 @@ func walkResolve(node interface{}, root map[string]interface{}) (interface{}, er
 			if !ok {
 				return node, nil
 			}
+			// Break circular references: return a placeholder instead of recursing.
+			if visiting[refStr] {
+				return map[string]interface{}{"$ref": refStr}, nil
+			}
 			resolved, err := resolveRef(refStr, root)
 			if err != nil {
 				return nil, err
 			}
 			// Recursively resolve refs within the resolved value.
-			return walkResolve(resolved, root)
+			visiting[refStr] = true
+			result, err := walkResolve(resolved, root, visiting)
+			delete(visiting, refStr)
+			return result, err
 		}
 		result := make(map[string]interface{}, len(v))
 		for key, val := range v {
-			resolved, err := walkResolve(val, root)
+			resolved, err := walkResolve(val, root, visiting)
 			if err != nil {
 				return nil, err
 			}
@@ -212,7 +220,7 @@ func walkResolve(node interface{}, root map[string]interface{}) (interface{}, er
 	case []interface{}:
 		result := make([]interface{}, len(v))
 		for i, item := range v {
-			resolved, err := walkResolve(item, root)
+			resolved, err := walkResolve(item, root, visiting)
 			if err != nil {
 				return nil, err
 			}
