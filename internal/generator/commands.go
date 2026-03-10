@@ -141,9 +141,11 @@ func isWriteOperation(method string) bool {
 
 // buildImports constructs the import block for the verb command file.
 func buildImports(cmd model.Command, cliName string) string {
+	writeOp := isWriteOperation(cmd.HTTPMethod)
 	hasIntOrBoolQueryFlag := false
 	hasStringSliceQueryFlag := false
 	hasDotNotationBodyFlag := false
+	hasEnumFlag := false
 	for _, f := range cmd.Flags {
 		if f.Source == model.FlagSourceQuery {
 			switch f.Type {
@@ -159,10 +161,13 @@ func buildImports(cmd model.Command, cliName string) string {
 				hasDotNotationBodyFlag = true
 			}
 		}
+		if len(f.Enum) > 0 {
+			hasEnumFlag = true
+		}
 	}
 
 	var imports []string
-	if cliName != "" {
+	if cliName != "" && writeOp {
 		imports = append(imports, `"encoding/json"`)
 	}
 	imports = append(imports, `"fmt"`, `"os"`)
@@ -176,7 +181,9 @@ func buildImports(cmd model.Command, cliName string) string {
 	if cliName != "" {
 		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/client"))
 		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/output"))
-		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/validate"))
+		if hasEnumFlag {
+			imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/validate"))
+		}
 	}
 	return "import (\n\t" + strings.Join(imports, "\n\t") + "\n)"
 }
@@ -266,11 +273,13 @@ func buildRunEBody(cmd model.Command, varName, cliName string, writeOp bool) str
 	}
 
 	// Build body — support --body/--body-file overrides for write operations.
+	bodyVar := varName + "Body"
+	bodyFileVar := varName + "BodyFile"
 	if writeOp {
 		// --body-file: read JSON from file, set body string
-		w.line(`if bodyFile != "" {`)
+		w.linef(`if %s != "" {`, bodyFileVar)
 		w.indent++
-		w.line("fileData, err := os.ReadFile(bodyFile)")
+		w.linef("fileData, err := os.ReadFile(%s)", bodyFileVar)
 		w.line("if err != nil {")
 		w.indent++
 		w.linef(`return fmt.Errorf("reading body-file: %%w", err)`)
@@ -281,19 +290,19 @@ func buildRunEBody(cmd model.Command, varName, cliName string, writeOp bool) str
 		w.line(`return fmt.Errorf("body-file does not contain valid JSON")`)
 		w.indent--
 		w.line("}")
-		w.line("body = string(fileData)")
+		w.linef("%s = string(fileData)", bodyVar)
 		w.indent--
 		w.line("}")
 		// Decide body source: --body/--body-file override vs individual flags
-		w.line(`if body != "" {`)
+		w.linef(`if %s != "" {`, bodyVar)
 		w.indent++
-		w.line("if !json.Valid([]byte(body)) {")
+		w.linef("if !json.Valid([]byte(%s)) {", bodyVar)
 		w.indent++
 		w.line(`return fmt.Errorf("--body does not contain valid JSON")`)
 		w.indent--
 		w.line("}")
 		w.line("var bodyObj interface{}")
-		w.line("_ = json.Unmarshal([]byte(body), &bodyObj)")
+		w.linef("_ = json.Unmarshal([]byte(%s), &bodyObj)", bodyVar)
 		w.linef(`resp, err := c.Do(%q, %q, pathParams, queryParams, bodyObj)`, cmd.HTTPMethod, cmd.Path)
 		w.line("if err != nil {")
 		w.indent++
@@ -452,7 +461,10 @@ func buildArgsExpr(args []model.Arg) string {
 func buildFlagVarDeclarations(cmdVarName string, flags []model.Flag, writeOp bool) string {
 	var lines []string
 	if writeOp {
-		lines = append(lines, "\tbody string", "\tbodyFile string")
+		lines = append(lines,
+			fmt.Sprintf("\t%sBody string", cmdVarName),
+			fmt.Sprintf("\t%sBodyFile string", cmdVarName),
+		)
 	}
 	for _, flag := range flags {
 		if flag.Type == model.FlagTypeStringSlice && flag.Source == model.FlagSourceQuery {
@@ -479,8 +491,8 @@ func buildFlagInits(cmdVarName string, flags []model.Flag, writeOp bool) string 
 	var lines []string
 	if writeOp {
 		lines = append(lines,
-			fmt.Sprintf("\t%s.Flags().StringVar(&body, \"body\", \"\", \"Raw JSON body (overrides individual flags)\")", cmdVarName),
-			fmt.Sprintf("\t%s.Flags().StringVar(&bodyFile, \"body-file\", \"\", \"Path to JSON file to use as request body\")", cmdVarName),
+			fmt.Sprintf("\t%s.Flags().StringVar(&%sBody, \"body\", \"\", \"Raw JSON body (overrides individual flags)\")", cmdVarName, cmdVarName),
+			fmt.Sprintf("\t%s.Flags().StringVar(&%sBodyFile, \"body-file\", \"\", \"Path to JSON file to use as request body\")", cmdVarName, cmdVarName),
 		)
 	}
 	for _, flag := range flags {

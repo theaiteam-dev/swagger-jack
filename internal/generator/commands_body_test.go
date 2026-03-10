@@ -137,9 +137,8 @@ func TestBodyFlagOverridesIndividualFlags(t *testing.T) {
 	src, err := generator.GenerateVerbCmd(resource, cmd, "myapi")
 	require.NoError(t, err)
 
-	// The generated code should check body != "" before using individual flags
-	hasBodyCheck := strings.Contains(src, `body != ""`) ||
-		strings.Contains(src, "if body")
+	// The generated code should check the body var != "" before using individual flags
+	hasBodyCheck := strings.Contains(src, `Body != ""`)
 	assert.True(t, hasBodyCheck,
 		"POST RunE should check --body flag before using individual body flags")
 }

@@ -151,7 +151,7 @@ func TestBodyIntegration_BodyOverrideLogic(t *testing.T) {
 	require.NoError(t, err, "Generate should succeed")
 
 	src := readGeneratedCmd(t, dir, "create")
-	hasBodyCheck := strings.Contains(src, `body != ""`) || strings.Contains(src, "if body")
+	hasBodyCheck := strings.Contains(src, `Body != ""`)
 	assert.True(t, hasBodyCheck,
 		"generated POST command should check --body before individual flags")
 }

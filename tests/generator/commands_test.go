@@ -365,12 +365,9 @@ func TestStrconvForIntFlags(t *testing.T) {
 		"generated source MUST import strconv when an int query flag exists")
 }
 
-// TestNoJsonImportForNoBodyFlags verifies that when a command has no body flags,
-// the generated file does NOT import "encoding/json".
-// TestJsonImportForNoBodyFlagsWithCliName verifies that when cliName is set,
-// "encoding/json" IS imported even without body flags, because the unified
-// --json output path uses json.Unmarshal / json.MarshalIndent for all commands.
-func TestJsonImportForNoBodyFlagsWithCliName(t *testing.T) {
+// TestNoJsonImportForGetCommand verifies that GET commands do NOT import
+// "encoding/json" — they have no body marshaling and output uses raw bytes.
+func TestNoJsonImportForGetCommand(t *testing.T) {
 	res := model.Resource{Name: "widgets"}
 	cmd := model.Command{
 		Name:       "list",
@@ -384,8 +381,8 @@ func TestJsonImportForNoBodyFlagsWithCliName(t *testing.T) {
 	src, err := generator.GenerateVerbCmd(res, cmd, "testcli")
 	require.NoError(t, err)
 
-	assert.Contains(t, src, `"encoding/json"`,
-		"generated source must import encoding/json (needed for unified --json output path)")
+	assert.NotContains(t, src, `"encoding/json"`,
+		"GET commands do not marshal a body, so encoding/json is not needed")
 }
 
 // TestJsonImportForBodyFlags verifies that when a command has body flags,
