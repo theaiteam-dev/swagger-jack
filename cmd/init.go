@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/queso/swagger-jack/internal/generator"
 	"github.com/queso/swagger-jack/internal/model"
@@ -17,12 +18,14 @@ func newInitCmd() *cobra.Command {
 	var schemaPath string
 	var cliName string
 	var outputDir string
+	var timeout time.Duration
 
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate a new CLI project from an OpenAPI spec",
 		Long:  "Init reads an OpenAPI 3.x spec and generates a complete, buildable Go CLI project using Cobra.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			parser.SetHTTPTimeout(timeout)
 			return runInit(cmd, schemaPath, cliName, outputDir)
 		},
 	}
@@ -38,6 +41,7 @@ func newInitCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&outputDir, "output-dir", "", "Output directory for the generated project (defaults to ./<name>)")
+	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Second, "HTTP timeout for fetching remote schemas")
 
 	return cmd
 }

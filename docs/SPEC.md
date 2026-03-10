@@ -224,6 +224,8 @@ The OpenAPI `securitySchemes` section drives which auth method is generated.
 - **JSON** (`--json`): Raw JSON response, pipe to `jq`
 - **Quiet** (`-q`): IDs only, one per line (useful for scripting)
 
+**Known table output limitations**: `PrintTable` does not recursively format nested objects within array rows or arrays of non-objects. These cases fall back to pretty-printed JSON output. Full nested-object rendering is planned for a future milestone.
+
 ## Phase 3: CLI for Swagger Jack Itself
 
 ### Commands

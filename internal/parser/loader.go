@@ -79,11 +79,20 @@ func detectFormatFromContentType(ct string) string {
 	}
 }
 
-// httpClient is the shared client used for URL-based spec loading.
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+// httpTimeout controls the timeout used by loadFromURL. It defaults to 30s
+// and can be changed via SetHTTPTimeout before calling Load.
+var httpTimeout = 30 * time.Second
+
+// SetHTTPTimeout configures the HTTP client timeout used when loading specs
+// from URLs. Call this before Load when a non-default timeout is needed
+// (e.g. pass a short duration in tests, or honour a --timeout CLI flag).
+func SetHTTPTimeout(d time.Duration) {
+	httpTimeout = d
+}
 
 // loadFromURL fetches a spec from an HTTP/HTTPS URL and returns its bytes and detected format.
 func loadFromURL(rawURL string) ([]byte, string, error) {
+	httpClient := &http.Client{Timeout: httpTimeout}
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request for %q: %w", rawURL, err)

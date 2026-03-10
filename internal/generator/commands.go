@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"os"
 	"strings"
 
 	"github.com/queso/swagger-jack/internal/model"
@@ -175,6 +176,7 @@ func buildImports(cmd model.Command, cliName string) string {
 	if cliName != "" {
 		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/client"))
 		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/output"))
+		imports = append(imports, fmt.Sprintf(`%q`, cliName+"/internal/validate"))
 	}
 	return "import (\n\t" + strings.Join(imports, "\n\t") + "\n)"
 }
@@ -243,7 +245,7 @@ func buildRunEBody(cmd model.Command, varName, cliName string, writeOp bool) str
 		w.line("queryParams := map[string]string{}")
 	}
 
-	// Runtime validation for enum flags.
+	// Runtime validation for enum flags using validate.Enum helper.
 	for _, f := range cmd.Flags {
 		if len(f.Enum) == 0 {
 			continue
@@ -253,31 +255,13 @@ func buildRunEBody(cmd model.Command, varName, cliName string, writeOp bool) str
 		for i, v := range f.Enum {
 			enumLiterals[i] = fmt.Sprintf("%q", v)
 		}
-		allowedExpr := "{" + strings.Join(enumLiterals, ", ") + "}"
+		allowedExpr := "[]string{" + strings.Join(enumLiterals, ", ") + "}"
 		if f.Required {
 			// Always validate required enum flags.
-			w.linef("_allowedFor%s := []string%s", sanitizeIdentifier(f.Name), allowedExpr)
-			w.linef("_validFor%s := false", sanitizeIdentifier(f.Name))
-			w.linef("for _, _v := range _allowedFor%s { if _v == %s { _validFor%s = true; break } }", sanitizeIdentifier(f.Name), fVar, sanitizeIdentifier(f.Name))
-			w.linef("if !_validFor%s {", sanitizeIdentifier(f.Name))
-			w.indent++
-			w.linef(`return fmt.Errorf("invalid value %%q for --%s: must be one of: %s", %s)`, f.Name, strings.Join(f.Enum, ", "), fVar)
-			w.indent--
-			w.line("}")
+			w.linef(`if err := validate.Enum(%q, %s, %s); err != nil { return err }`, f.Name, fVar, allowedExpr)
 		} else {
 			// Only validate optional flags when explicitly set.
-			w.linef(`if cmd.Flags().Changed(%q) {`, f.Name)
-			w.indent++
-			w.linef("_allowedFor%s := []string%s", sanitizeIdentifier(f.Name), allowedExpr)
-			w.linef("_validFor%s := false", sanitizeIdentifier(f.Name))
-			w.linef("for _, _v := range _allowedFor%s { if _v == %s { _validFor%s = true; break } }", sanitizeIdentifier(f.Name), fVar, sanitizeIdentifier(f.Name))
-			w.linef("if !_validFor%s {", sanitizeIdentifier(f.Name))
-			w.indent++
-			w.linef(`return fmt.Errorf("invalid value %%q for --%s: must be one of: %s", %s)`, f.Name, strings.Join(f.Enum, ", "), fVar)
-			w.indent--
-			w.line("}")
-			w.indent--
-			w.line("}")
+			w.linef(`if cmd.Flags().Changed(%q) { if err := validate.Enum(%q, %s, %s); err != nil { return err } }`, f.Name, f.Name, fVar, allowedExpr)
 		}
 	}
 
@@ -362,6 +346,11 @@ func buildRunEBody(cmd model.Command, varName, cliName string, writeOp bool) str
 				w.line("_cur[_p] = map[string]interface{}{}")
 				w.indent--
 				w.line("}")
+				// The type assertion below is safe: extractFlagsFromSchema only
+				// emits dot-notation flags when a schema property is of object
+				// type, so any intermediate key in the path was inserted as
+				// map[string]interface{} above. A flat flag and a dot-notation
+				// parent sharing the same name cannot coexist from a valid spec.
 				w.line("_cur = _cur[_p].(map[string]interface{})")
 				w.indent--
 				w.line("}")
@@ -470,6 +459,7 @@ func buildFlagVarDeclarations(cmdVarName string, flags []model.Flag, writeOp boo
 			continue // read inline in RunE, no var needed
 		}
 		if flag.Source == model.FlagSourceBody && strings.Count(flag.Name, ".") >= 3 {
+			fmt.Fprintf(os.Stderr, "warning: flag %q exceeds max nesting depth (3 levels), skipping\n", flag.Name)
 			continue // 4+ part dot-notation flags exceed depth limit, skipped in RunE
 		}
 		goType := flagGoType(flag.Type)
@@ -495,6 +485,7 @@ func buildFlagInits(cmdVarName string, flags []model.Flag, writeOp bool) string 
 	}
 	for _, flag := range flags {
 		if flag.Source == model.FlagSourceBody && strings.Count(flag.Name, ".") >= 3 {
+			fmt.Fprintf(os.Stderr, "warning: flag %q exceeds max nesting depth (3 levels), skipping\n", flag.Name)
 			continue // 4+ part dot-notation flags exceed depth limit, not registered
 		}
 		var line string

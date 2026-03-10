@@ -78,34 +78,37 @@ func TestEnumFlagCompletionReturnsEnumValues(t *testing.T) {
 
 // TestEnumFlagRuntimeValidationPresent verifies that the generated RunE contains
 // runtime validation of the enum flag value before the HTTP call.
-// FAILS until commands.go generates enum runtime validation.
+// Validation is delegated to validate.Enum from the shared validate package.
 func TestEnumFlagRuntimeValidationPresent(t *testing.T) {
 	cmd := makeEnumFlagCmd([]string{"active", "inactive", "pending"}, true)
 	resource := makeEnumFlagResource(cmd)
 	src, err := generator.GenerateVerbCmd(resource, cmd, "myapi")
 	require.NoError(t, err)
 
-	hasValidation := strings.Contains(src, "invalid value") ||
+	hasValidation := strings.Contains(src, "validate.Enum") ||
+		strings.Contains(src, "invalid value") ||
 		strings.Contains(src, "must be one of") ||
 		strings.Contains(src, "allowed values")
 	assert.True(t, hasValidation,
-		"generated RunE should validate enum flag values with a descriptive error message")
+		"generated RunE should validate enum flag values (via validate.Enum or inline)")
 }
 
-// TestEnumFlagValidationErrorMessageFormat verifies the exact format of the
-// validation error matches the spec: invalid value "foo" for --status: must be one of: ...
-// FAILS until commands.go generates validation with correct error format.
+// TestEnumFlagValidationErrorMessageFormat verifies that validation of enum flags
+// references the flag name. Validation is now delegated to validate.Enum so the
+// error message format lives in the shared validate package rather than inline.
 func TestEnumFlagValidationErrorMessageFormat(t *testing.T) {
 	cmd := makeEnumFlagCmd([]string{"active", "inactive"}, true)
 	resource := makeEnumFlagResource(cmd)
 	src, err := generator.GenerateVerbCmd(resource, cmd, "myapi")
 	require.NoError(t, err)
 
-	// The error message should reference the flag name and "must be one of"
+	// The generated source should pass the flag name to validate.Enum or inline the message.
 	hasStatusRef := strings.Contains(src, `"status"`) || strings.Contains(src, "--status")
-	hasMustBeOneOf := strings.Contains(src, "must be one of") || strings.Contains(src, "one of:")
-	assert.True(t, hasStatusRef && hasMustBeOneOf,
-		"validation error should reference flag name and 'must be one of'")
+	hasValidation := strings.Contains(src, "validate.Enum") ||
+		strings.Contains(src, "must be one of") ||
+		strings.Contains(src, "one of:")
+	assert.True(t, hasStatusRef && hasValidation,
+		"generated source should reference the flag name and include validation via validate.Enum or inline message")
 }
 
 // TestOptionalEnumFlagCheckedWhenChanged verifies that optional enum flags

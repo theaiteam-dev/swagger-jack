@@ -81,9 +81,11 @@ func Print(data interface{}, jsonMode bool) error {
 	return err
 }
 
-// PrintTable renders JSON bytes as a human-friendly table. When noColor is
-// true, ANSI formatting is disabled. Arrays are rendered with column headers
-// derived from the first object's keys; objects are rendered as key-value pairs.
+// PrintTable renders JSON data as a human-readable table.
+// Arrays of objects are rendered as columnar tables with one row per object.
+// Single objects are rendered as two-column key-value tables.
+// Nested objects within rows and arrays of non-objects fall back to
+// pretty-printed JSON output.
 func PrintTable(data []byte, noColor bool) error {
 	var raw interface{}
 	if err := json.Unmarshal(data, &raw); err != nil {

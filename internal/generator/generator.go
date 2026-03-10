@@ -133,6 +133,15 @@ func Generate(spec *model.APISpec, name string, outputDir string) error {
 		return err
 	}
 
+	// internal/validate/validate.go
+	validateSrc, err := GenerateValidate()
+	if err != nil {
+		return fmt.Errorf("generating validate helpers: %w", err)
+	}
+	if err := writeFile(filepath.Join(outputDir, "internal", "validate", "validate.go"), validateSrc); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -152,6 +161,7 @@ func createDirectoryLayout(outputDir string) error {
 		filepath.Join(outputDir, "internal"),
 		filepath.Join(outputDir, "internal", "client"),
 		filepath.Join(outputDir, "internal", "output"),
+		filepath.Join(outputDir, "internal", "validate"),
 	}
 
 	for _, dir := range dirs {

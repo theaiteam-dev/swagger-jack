@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/queso/swagger-jack/internal/model"
 	"github.com/queso/swagger-jack/internal/parser"
@@ -12,12 +13,14 @@ import (
 // newValidateCmd constructs the validate subcommand.
 func newValidateCmd() *cobra.Command {
 	var schemaPath string
+	var timeout time.Duration
 
 	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate an OpenAPI spec file",
 		Long:  "Validate reads an OpenAPI 3.x spec and reports the title, version, resource count, and command count.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			parser.SetHTTPTimeout(timeout)
 			return runValidate(cmd, schemaPath)
 		},
 	}
@@ -26,6 +29,7 @@ func newValidateCmd() *cobra.Command {
 	if err := cmd.MarkFlagRequired("schema"); err != nil {
 		panic(fmt.Sprintf("failed to mark --schema as required: %v", err))
 	}
+	cmd.Flags().DurationVar(&timeout, "timeout", 30*time.Second, "HTTP timeout for fetching remote schemas")
 
 	return cmd
 }
