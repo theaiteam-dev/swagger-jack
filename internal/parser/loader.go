@@ -79,20 +79,21 @@ func detectFormatFromContentType(ct string) string {
 	}
 }
 
-// httpTimeout controls the timeout used by loadFromURL. It defaults to 30s
-// and can be changed via SetHTTPTimeout before calling Load.
-var httpTimeout = 30 * time.Second
+// defaultHTTPTimeout is the fallback HTTP timeout when none is specified.
+const defaultHTTPTimeout = 30 * time.Second
 
-// SetHTTPTimeout configures the HTTP client timeout used when loading specs
-// from URLs. Call this before Load when a non-default timeout is needed
-// (e.g. pass a short duration in tests, or honour a --timeout CLI flag).
-func SetHTTPTimeout(d time.Duration) {
-	httpTimeout = d
-}
+// SetHTTPTimeout is kept for backward compatibility but is now a no-op.
+// Pass the timeout via LoadWithTimeout instead.
+//
+// Deprecated: Use LoadWithTimeout to avoid data races under concurrent use.
+func SetHTTPTimeout(_ time.Duration) {}
 
 // loadFromURL fetches a spec from an HTTP/HTTPS URL and returns its bytes and detected format.
-func loadFromURL(rawURL string) ([]byte, string, error) {
-	httpClient := &http.Client{Timeout: httpTimeout}
+func loadFromURL(rawURL string, timeout time.Duration) ([]byte, string, error) {
+	if timeout <= 0 {
+		timeout = defaultHTTPTimeout
+	}
+	httpClient := &http.Client{Timeout: timeout}
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("creating request for %q: %w", rawURL, err)
@@ -130,13 +131,21 @@ func loadFromURL(rawURL string) ([]byte, string, error) {
 
 // Load reads an OpenAPI 3.0 spec (JSON or YAML) from path (file or URL), resolves $ref references inline,
 // and returns a Result containing the normalized APISpec and raw JSON bytes.
+// For URL-based specs, a default 30s HTTP timeout is used. Use LoadWithTimeout
+// to specify a custom timeout per-call without data races.
 func Load(path string) (*Result, error) {
+	return LoadWithTimeout(path, defaultHTTPTimeout)
+}
+
+// LoadWithTimeout is like Load but uses the given timeout for HTTP requests.
+// It is safe to call concurrently with different timeouts.
+func LoadWithTimeout(path string, timeout time.Duration) (*Result, error) {
 	var data []byte
 	var format string
 	var err error
 
 	if isURL(path) {
-		data, format, err = loadFromURL(path)
+		data, format, err = loadFromURL(path, timeout)
 		if err != nil {
 			return nil, err
 		}

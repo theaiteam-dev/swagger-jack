@@ -25,8 +25,7 @@ func newInitCmd() *cobra.Command {
 		Short: "Generate a new CLI project from an OpenAPI spec",
 		Long:  "Init reads an OpenAPI 3.x spec and generates a complete, buildable Go CLI project using Cobra.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			parser.SetHTTPTimeout(timeout)
-			return runInit(cmd, schemaPath, cliName, outputDir)
+			return runInit(cmd, schemaPath, cliName, outputDir, timeout)
 		},
 	}
 
@@ -48,8 +47,8 @@ func newInitCmd() *cobra.Command {
 
 // runInit executes the full init pipeline: load, build model, extract security,
 // generate project, and print the summary and next steps.
-func runInit(cmd *cobra.Command, schemaPath, cliName, outputDir string) error {
-	result, err := parser.Load(schemaPath)
+func runInit(cmd *cobra.Command, schemaPath, cliName, outputDir string, timeout time.Duration) error {
+	result, err := parser.LoadWithTimeout(schemaPath, timeout)
 	if err != nil {
 		return fmt.Errorf("failed to load spec: %w", err)
 	}

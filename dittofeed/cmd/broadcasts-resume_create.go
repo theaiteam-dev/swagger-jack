@@ -1,0 +1,88 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"github.com/spf13/cobra"
+	"dittofeed/internal/client"
+	"dittofeed/internal/output"
+)
+
+var (
+	broadcastsResumeCreateCmdBody string
+	broadcastsResumeCreateCmdBodyFile string
+	broadcastsResumeCreateCmd_workspaceId string
+	broadcastsResumeCreateCmd_broadcastId string
+)
+
+var broadcastsResumeCreateCmd = &cobra.Command{
+	Use: "create",
+	Short: "",
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		baseURL, _ := cmd.Root().PersistentFlags().GetString("base-url")
+		token := os.Getenv("DITTOFEED_TOKEN")
+		c := client.NewClient(baseURL, token)
+		pathParams := map[string]string{}
+		queryParams := map[string]string{}
+		if broadcastsResumeCreateCmdBodyFile != "" {
+			fileData, err := os.ReadFile(broadcastsResumeCreateCmdBodyFile)
+			if err != nil {
+				return fmt.Errorf("reading body-file: %w", err)
+			}
+			if !json.Valid(fileData) {
+				return fmt.Errorf("body-file does not contain valid JSON")
+			}
+			broadcastsResumeCreateCmdBody = string(fileData)
+		}
+		if broadcastsResumeCreateCmdBody != "" {
+			if !json.Valid([]byte(broadcastsResumeCreateCmdBody)) {
+				return fmt.Errorf("--body does not contain valid JSON")
+			}
+			var bodyObj interface{}
+			_ = json.Unmarshal([]byte(broadcastsResumeCreateCmdBody), &bodyObj)
+			resp, err := c.Do("POST", "/api/broadcasts/resume", pathParams, queryParams, bodyObj)
+			if err != nil {
+				return err
+			}
+			jsonMode, _ := cmd.Root().PersistentFlags().GetBool("json")
+			noColor, _ := cmd.Root().PersistentFlags().GetBool("no-color")
+			if jsonMode {
+				fmt.Printf("%s\n", string(resp))
+			} else {
+				if err := output.PrintTable(resp, noColor); err != nil {
+					fmt.Println(string(resp))
+				}
+			}
+			return nil
+		}
+		bodyMap := map[string]interface{}{}
+		bodyMap["workspaceId"] = broadcastsResumeCreateCmd_workspaceId
+		bodyMap["broadcastId"] = broadcastsResumeCreateCmd_broadcastId
+		resp, err := c.Do("POST", "/api/broadcasts/resume", pathParams, queryParams, bodyMap)
+		if err != nil {
+			return err
+		}
+		jsonMode, _ := cmd.Root().PersistentFlags().GetBool("json")
+		noColor, _ := cmd.Root().PersistentFlags().GetBool("no-color")
+		if jsonMode {
+			fmt.Printf("%s\n", string(resp))
+		} else {
+			if err := output.PrintTable(resp, noColor); err != nil {
+				fmt.Println(string(resp))
+			}
+		}
+		return nil
+	},
+}
+
+func init() {
+	broadcastsResumeCmd.AddCommand(broadcastsResumeCreateCmd)
+	broadcastsResumeCreateCmd.Flags().StringVar(&broadcastsResumeCreateCmdBody, "body", "", "Raw JSON body (overrides individual flags)")
+	broadcastsResumeCreateCmd.Flags().StringVar(&broadcastsResumeCreateCmdBodyFile, "body-file", "", "Path to JSON file to use as request body")
+	broadcastsResumeCreateCmd.Flags().StringVar(&broadcastsResumeCreateCmd_workspaceId, "workspaceId", "", "")
+	broadcastsResumeCreateCmd.Flags().StringVar(&broadcastsResumeCreateCmd_broadcastId, "broadcastId", "", "")
+	broadcastsResumeCreateCmd.MarkFlagRequired("workspaceId")
+	broadcastsResumeCreateCmd.MarkFlagRequired("broadcastId")
+}

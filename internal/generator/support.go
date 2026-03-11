@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/queso/swagger-jack/internal/model"
@@ -176,7 +177,8 @@ func FormatHTTPError(statusCode int, body string) error {
 
 // GenerateConfig returns Go source code for the generated project's
 // internal/config.go file. The CLI name is used to derive the environment
-// variable prefix and the config-file directory path.
+// variable prefix and the config-file directory path. All security scheme
+// env vars are documented in the generated file.
 func GenerateConfig(spec *model.APISpec, name string) (string, error) {
 	if spec == nil {
 		return "", fmt.Errorf("spec must not be nil")
@@ -190,6 +192,37 @@ func GenerateConfig(spec *model.APISpec, name string) (string, error) {
 	envPrefix := strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name))
 	src := strings.ReplaceAll(configTemplate, "{{.EnvPrefix}}", envPrefix)
 	src = strings.TrimLeft(src, "\n")
+
+	// Append documentation comments for all detected security scheme env vars
+	// so developers can easily discover the available auth environment variables.
+	if spec != nil && len(spec.SecuritySchemes) > 0 {
+		// Sort for deterministic output.
+		schemeNames := make([]string, 0, len(spec.SecuritySchemes))
+		for sn := range spec.SecuritySchemes {
+			schemeNames = append(schemeNames, sn)
+		}
+		sort.Strings(schemeNames)
+
+		var envVars []string
+		seen := map[string]bool{}
+		for _, sn := range schemeNames {
+			scheme := spec.SecuritySchemes[sn]
+			if scheme.EnvVar != "" && !seen[scheme.EnvVar] {
+				seen[scheme.EnvVar] = true
+				envVars = append(envVars, scheme.EnvVar)
+			}
+		}
+
+		if len(envVars) > 0 {
+			var comment strings.Builder
+			comment.WriteString("\n// Auth environment variables detected from the OpenAPI spec:\n")
+			for _, ev := range envVars {
+				comment.WriteString("//   " + ev + "\n")
+			}
+			src += comment.String()
+		}
+	}
+
 	return src, nil
 }
 

@@ -55,6 +55,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - URL loader supports both http/https with standard Go HTTP client
 - YAML parsing uses Go's standard yaml library with JSON fallback
 
+## [0.3.0] - 2026-03-11
+
+### Added
+
+- **Pagination code generation** — Generated CLIs automatically include `--page`, `--per-page`, `--cursor`, and `--all` flags for paginated endpoints. Offset, cursor, and keyset pagination strategies supported via `FetchAll` helper in generated `internal/client/pagination.go` (#WI-511, #WI-517)
+- **swaggerjack preview command** — Dry-run code generation showing all files that would be created without writing to disk. Useful for previewing changes before running `init` or `update` (#WI-512)
+- **Table output as default** — Generated CLIs now default to table-formatted output with `--json` flag available for raw JSON (#WI-513)
+- **Multi-auth client support** — Generated CLIs support Bearer token, API key (custom header), and Basic authentication schemes simultaneously. Auth method automatically selected based on OpenAPI `securitySchemes` configuration (#WI-514, #WI-516, #WI-520)
+- **File upload detection** — Model builder detects `multipart/form-data` endpoints and creates `FlagTypeFile` flags. Generated commands use `DoMultipart()` for upload requests (#WI-515, #WI-519)
+- **Custom code preservation** — `internal/preserve` package enables updating generated code while preserving hand-written code blocks marked with `swagger-jack:custom:start` / `swagger-jack:custom:end` comments. Handles CRLF normalization and orphan comment-out fallback (#WI-518)
+- **swaggerjack update command** — Regenerate existing CLI project from updated OpenAPI spec, preserving custom code blocks. Supports `--dry-run` and `--no-diff` flags. Unified diff output shows file changes, orphan file warnings (#WI-521)
+- **Pagination helper strategies** — `FetchAll()` supports offset, cursor, and keyset pagination with error-response termination. Respects user-provided `--page` N and `--limit` N flag values (#WI-517)
+
+### Fixed
+
+- SA1019 deprecation in `cmd/validate.go` — Replaced `parser.SetHTTPTimeout` with `parser.LoadWithTimeout` for proper timeout handling (#WI-521)
+- Pagination error response handling — FetchAll now terminates pagination loop on error responses instead of continuing to next page (#WI-517)
+- Generated `root.go` extension points — Added `init-hook` marker for custom initialization logic in updated projects (#WI-521)
+
+### Changed
+
+- Generated CLIs now default to table output with optional `--json` flag (instead of defaulting to JSON)
+- Generated `root.go` now includes `init-hook` marker for custom code insertion points during `swaggerjack update`
+- Model builder now extracts pagination parameters from OpenAPI schemas automatically
+
+### Implementation Details
+
+- Pagination pagination strategies in `internal/generator/pagination.go` template
+- Auth scheme wiring emits correct environment variable lookups per scheme type via `GenerateVerbCmdWithAuth`
+- File upload support uses `DoMultipart` client method with per-flag scoped upload blocks
+- Custom code preservation uses comment-marker scanning with CRLF-aware merge
+- `swaggerjack update` command integrates preserve package for seamless regeneration
+
 ## [Unreleased]
 
 No changes yet.

@@ -24,12 +24,8 @@ type RawJSONProvider interface {
 // Build parses the raw OpenAPI spec from result and returns a fully populated
 // slice of Resources with Commands, including operationId overrides and
 // collision resolution.
-func Build(result SpecProvider) ([]Resource, error) {
-	rp, ok := result.(RawJSONProvider)
-	if !ok {
-		return nil, fmt.Errorf("result does not implement RawJSONProvider")
-	}
-	data := rp.GetRawJSON()
+func Build(result RawJSONProvider) ([]Resource, error) {
+	data := result.GetRawJSON()
 	if len(data) == 0 {
 		return nil, fmt.Errorf("raw JSON is empty")
 	}
@@ -90,6 +86,15 @@ func buildFromRaw(data []byte) ([]Resource, error) {
 					} else {
 						cmd.Args = args
 						cmd.Flags = append(cmd.Flags, queryFlags...)
+
+						// Detect pagination patterns from query parameter names.
+						queryNames := make([]string, 0, len(queryFlags))
+						for _, f := range queryFlags {
+							if f.Source == FlagSourceQuery {
+								queryNames = append(queryNames, f.Name)
+							}
+						}
+						cmd.Pagination = detectPagination(queryNames)
 					}
 				}
 			}
@@ -103,6 +108,16 @@ func buildFromRaw(data []byte) ([]Resource, error) {
 						log.Printf("ExtractBodyFlags for %s %s: %v", method, path, err)
 					} else {
 						cmd.Flags = append(cmd.Flags, bodyFlags...)
+						// If any body flag is a file upload, populate RequestBody metadata.
+						for _, f := range bodyFlags {
+							if f.Source == FlagSourceBody && f.Type == FlagTypeFile {
+								cmd.RequestBody = &RequestBody{
+									IsFileUpload: true,
+									ContentType:  "multipart/form-data",
+								}
+								break
+							}
+						}
 					}
 				}
 			}

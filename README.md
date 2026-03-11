@@ -54,12 +54,16 @@ go build -o myapi .
 - **Parameter Handling** — Path params become positional args, query/body params become typed CLI flags with enum validation
 - **Nested Object Flags** — Complex objects support dot-notation access (e.g., `--address.city`, `--metadata.tags.primary`)
 - **Body Parameter Flags** — Write operations support `--body` (raw JSON) and `--body-file` (load from file) for inline payloads
+- **Pagination Support** — Automatic pagination flag generation (`--page`, `--per-page`, `--cursor`, `--all`) with FetchAll helper supporting offset, cursor, and keyset strategies
 - **Enum Support** — Automatic extraction and validation of enum fields with shell tab completion
-- **Table and JSON Output** — Generated CLIs support pretty-printed tables and structured JSON output
+- **Table and JSON Output** — Generated CLIs default to table-formatted output with `--json` flag for JSON mode
 - **Shell Completions** — Both swagger-jack and generated CLIs provide bash/zsh/fish completion support
-- **Security Schemes** — Supports Bearer tokens, API keys, and Basic auth with config file + env var integration
+- **Multi-Auth Support** — Supports Bearer tokens, API keys, and Basic auth simultaneously with config file + env var integration
+- **File Upload Handling** — Automatic detection of multipart endpoints with file flag generation and upload support
 - **Code Generation** — Complete, buildable Go projects with Cobra CLI framework
 - **Validation** — Dry-run spec validation before code generation with auth detection
+- **Preview Command** — Dry-run code generation showing files that would be created without writing
+- **Update Command** — Regenerate CLIs from updated specs while preserving custom code blocks
 
 ## Usage
 
@@ -70,6 +74,13 @@ swaggerjack validate --schema ./openapi.yaml
 # Output: Spec: My API (1.0.0)
 #         5 resources
 #         23 commands
+```
+
+### Preview generated code (dry run)
+
+```bash
+swaggerjack preview --schema ./openapi.yaml --name myapi
+# Shows all files that would be generated without writing to disk
 ```
 
 ### Generate a CLI from a spec
@@ -84,6 +95,22 @@ swaggerjack init --schema https://api.example.com/docs/json --name myapi
 # Custom output directory
 swaggerjack init --schema ./openapi.yaml --name myapi --output-dir ./generated
 ```
+
+### Update an existing CLI with a new spec
+
+```bash
+# Regenerate from updated spec, preserving custom code
+cd myapi
+swaggerjack update --schema ../openapi-v2.yaml
+
+# Preview changes without writing
+swaggerjack update --schema ../openapi-v2.yaml --dry-run
+
+# Suppress diff output
+swaggerjack update --schema ../openapi-v2.yaml --no-diff
+```
+
+Custom code blocks marked with `swagger-jack:custom:start` / `swagger-jack:custom:end` comments are automatically preserved during update.
 
 ### Generated project structure
 
@@ -151,18 +178,24 @@ go build -o swaggerjack .
 
 ## Status
 
-**Milestone 2 complete**. Rich feature set now available:
+**Milestone 3 complete**. Production-ready feature set now available:
 - **Milestone 1 (MVP)**: OpenAPI 3.0 parser, CLI model builder, code generation, authentication, JSON output
 - **Milestone 2 (Rich Features)**: YAML/URL spec loading, table output formatting, enum validation, nested dot-notation flags, body parameters, shell completions, integration tests
+- **Milestone 3 (Pagination & Update)**: Pagination codegen, table-as-default output, multi-auth support, file upload detection, custom code preservation, preview and update commands
 
 Implemented features:
 - YAML and URL-based spec loading
 - Enum field extraction with validation and tab completion
 - Body parameter support (`--body`, `--body-file`)
 - Nested object flags with dot-notation (3 levels deep)
-- Table output formatting with `--json` override
+- Table output as default with `--json` flag for JSON mode
+- Pagination support (`--page`, `--per-page`, `--cursor`, `--all`) with FetchAll helper
+- Multi-auth support (Bearer, API key, Basic auth)
+- File upload detection and `multipart/form-data` handling
 - Shell completion scripts (bash/zsh/fish)
 - Enhanced validation command with auth detection
+- Preview command for dry-run code generation
+- Update command for regenerating CLIs with custom code preservation
 - Comprehensive integration test suite
 
 See [docs/SPEC.md](docs/SPEC.md) for full design spec and roadmap.

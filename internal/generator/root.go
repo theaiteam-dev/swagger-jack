@@ -38,6 +38,8 @@ func init() {
 	rootCmd.PersistentFlags().String("config", "", "Config file path")
 	rootCmd.PersistentFlags().String("base-url", {{goString .BaseURL}}, "API base URL")
 	rootCmd.PersistentFlags().Bool("no-color", false, "Disable color output")
+	// swagger-jack:custom:start init-hook
+	// swagger-jack:custom:end
 }
 `
 

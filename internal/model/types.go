@@ -15,6 +15,8 @@ const (
 	FlagTypeBool FlagType = "bool"
 	// FlagTypeStringSlice is the string slice flag type.
 	FlagTypeStringSlice FlagType = "[]string"
+	// FlagTypeFile is the file upload flag type (multipart/form-data binary field).
+	FlagTypeFile FlagType = "file"
 )
 
 // FlagSource indicates where the flag value maps to in the HTTP request.
@@ -91,6 +93,8 @@ type RequestBody struct {
 	// Schema contains the flat-object field definitions for flag generation.
 	// For nested objects, dot notation is used (e.g., "address.city").
 	Schema []SchemaField `json:"schema,omitempty"`
+	// IsFileUpload is true when the request body uses multipart/form-data with binary fields.
+	IsFileUpload bool `json:"is_file_upload,omitempty"`
 }
 
 // Response represents the expected response shape for a Command.
@@ -119,6 +123,8 @@ type Command struct {
 	RequestBody *RequestBody `json:"request_body,omitempty"`
 	// Response describes the expected response.
 	Response *Response `json:"response,omitempty"`
+	// Pagination describes pagination metadata detected from query parameters.
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
 // Resource represents a group of related Commands under a single CLI subcommand.

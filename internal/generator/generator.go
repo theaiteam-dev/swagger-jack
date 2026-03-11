@@ -10,6 +10,30 @@ import (
 	"github.com/queso/swagger-jack/internal/model"
 )
 
+// ValidateName checks that name is safe for use as a Go module name and CLI
+// binary name: only alphanumerics, hyphens, and dots are allowed; reserved Go
+// keywords are rejected. Returns a descriptive error if validation fails.
+func ValidateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("name must not be empty")
+	}
+
+	// Only alphanumerics, hyphens, and dots are safe for shell env variable
+	// names (e.g. MY_API_TOKEN) and go.mod module paths.
+	for _, r := range name {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '.' {
+			return fmt.Errorf("name %q contains invalid character %q: only alphanumerics, hyphens, and dots are allowed", name, r)
+		}
+	}
+
+	// Reject reserved Go keywords — they cannot be used as identifiers.
+	if gotoken.IsKeyword(name) {
+		return fmt.Errorf("name %q is a reserved Go keyword", name)
+	}
+
+	return nil
+}
+
 // Generate creates a buildable Go CLI project in outputDir for the given spec
 // and CLI name. It produces:
 //
@@ -25,24 +49,8 @@ import (
 //   - outputDir/internal/config.go           (config loader)
 //   - outputDir/internal/errors.go           (error helpers)
 func Generate(spec *model.APISpec, name string, outputDir string) error {
-	if name == "" {
-		return fmt.Errorf("name must not be empty")
-	}
-
-	// Validate name contains only characters safe for shell environment variable
-	// names and go.mod module paths: alphanumerics, hyphens, and dots.
-	// Characters like @, (, ), ! would pass through cliNameToEnvPrefix unchanged
-	// and produce invalid shell variable names (e.g. "my.api@v1" → "MY_API@V1"),
-	// causing auth tokens to be silently unreadable.
-	for _, r := range name {
-		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '.' {
-			return fmt.Errorf("name %q contains invalid character %q: only alphanumerics, hyphens, and dots are allowed", name, r)
-		}
-	}
-
-	// Reject reserved Go keywords — they cannot be used as identifiers.
-	if gotoken.IsKeyword(name) {
-		return fmt.Errorf("name %q is a reserved Go keyword", name)
+	if err := ValidateName(name); err != nil {
+		return err
 	}
 
 	if err := createDirectoryLayout(outputDir); err != nil {
@@ -109,6 +117,15 @@ func Generate(spec *model.APISpec, name string, outputDir string) error {
 		return fmt.Errorf("generating client: %w", err)
 	}
 	if err := writeFile(filepath.Join(outputDir, "internal", "client", "client.go"), clientSrc); err != nil {
+		return err
+	}
+
+	// internal/client/pagination.go — FetchAll helper for auto-pagination
+	paginationSrc, err := GeneratePagination(name)
+	if err != nil {
+		return fmt.Errorf("generating pagination helper: %w", err)
+	}
+	if err := writeFile(filepath.Join(outputDir, "internal", "client", "pagination.go"), paginationSrc); err != nil {
 		return err
 	}
 
@@ -179,8 +196,32 @@ func createDirectoryLayout(outputDir string) error {
 	return nil
 }
 
+// EnsureDirectories creates the standard directory layout under outputDir.
+// It is exported so the update command can prepare the directory tree before
+// writing individual files.
+func EnsureDirectories(outputDir string) error {
+	return createDirectoryLayout(outputDir)
+}
+
 // writeMainGo writes a gofmt-formatted main.go into outputDir.
 func writeMainGo(outputDir, name string) error {
+	src, err := GenerateMain(name)
+	if err != nil {
+		return err
+	}
+
+	mainGoPath := filepath.Join(outputDir, "main.go")
+	if err := os.WriteFile(mainGoPath, []byte(src), 0o644); err != nil {
+		return fmt.Errorf("writing main.go: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateMain returns a gofmt-formatted main.go source string for the given
+// CLI name. It is exported so callers (such as the update command) can obtain
+// the content without writing to disk.
+func GenerateMain(name string) (string, error) {
 	src := fmt.Sprintf(`package main
 
 import "%s/cmd"
@@ -192,21 +233,31 @@ func main() {
 
 	formatted, err := format.Source([]byte(src))
 	if err != nil {
-		return fmt.Errorf("formatting main.go: %w", err)
+		return "", fmt.Errorf("formatting main.go: %w", err)
 	}
 
-	mainGoPath := filepath.Join(outputDir, "main.go")
-	if err := os.WriteFile(mainGoPath, formatted, 0o644); err != nil {
-		return fmt.Errorf("writing main.go: %w", err)
-	}
-
-	return nil
+	return string(formatted), nil
 }
 
 // writeGoMod writes a go.mod file into outputDir declaring the module name,
 // the Go version, and a require block with the cobra dependency.
 func writeGoMod(outputDir, name string) error {
-	content := fmt.Sprintf(`module %s
+	content := GenerateGoMod(name)
+
+	goModPath := filepath.Join(outputDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("writing go.mod: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateGoMod returns a go.mod file content string declaring the module name,
+// the Go version, and a require block with the cobra dependency. It is exported
+// so callers (such as the update command) can obtain the content without writing
+// to disk.
+func GenerateGoMod(name string) string {
+	return fmt.Sprintf(`module %s
 
 go 1.21
 
@@ -215,11 +266,4 @@ require (
 	github.com/spf13/cobra v1.8.0
 )
 `, name)
-
-	goModPath := filepath.Join(outputDir, "go.mod")
-	if err := os.WriteFile(goModPath, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("writing go.mod: %w", err)
-	}
-
-	return nil
 }

@@ -20,8 +20,7 @@ func newValidateCmd() *cobra.Command {
 		Short: "Validate an OpenAPI spec file",
 		Long:  "Validate reads an OpenAPI 3.x spec and reports the title, version, resource count, and command count.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			parser.SetHTTPTimeout(timeout)
-			return runValidate(cmd, schemaPath)
+			return runValidate(cmd, schemaPath, timeout)
 		},
 	}
 
@@ -35,10 +34,10 @@ func newValidateCmd() *cobra.Command {
 }
 
 // runValidate loads the spec, builds the model, and prints the summary.
-func runValidate(cmd *cobra.Command, schemaPath string) error {
+func runValidate(cmd *cobra.Command, schemaPath string, timeout time.Duration) error {
 	out := cmd.OutOrStdout()
 
-	result, err := parser.Load(schemaPath)
+	result, err := parser.LoadWithTimeout(schemaPath, timeout)
 	if err != nil {
 		_, _ = fmt.Fprintf(out, "Error: %v\n", err)
 		return fmt.Errorf("failed to load spec: %w", err)

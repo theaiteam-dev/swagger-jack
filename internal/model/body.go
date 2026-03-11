@@ -15,12 +15,83 @@ func ExtractBodyFlags(requestBody map[string]interface{}) ([]Flag, error) {
 		return nil, nil
 	}
 
+	// Check for multipart/form-data first.
+	if schema, ok := resolveMultipartSchema(requestBody); ok {
+		return extractMultipartFlags(schema)
+	}
+
 	schema, ok := resolveJSONSchema(requestBody)
 	if !ok {
 		return []Flag{}, nil
 	}
 
 	return extractFlagsFromSchema(schema, "")
+}
+
+// resolveMultipartSchema navigates requestBody → content → "multipart/form-data" → schema
+// and returns the schema map if found.
+func resolveMultipartSchema(requestBody map[string]interface{}) (map[string]interface{}, bool) {
+	content, ok := requestBody["content"].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	multipartContent, ok := content["multipart/form-data"].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	schema, ok := multipartContent["schema"].(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	return schema, true
+}
+
+// extractMultipartFlags extracts flags from a multipart/form-data schema.
+// Properties with type=string and format=binary become FlagTypeFile flags;
+// all other properties use their normal mapped types.
+func extractMultipartFlags(schema map[string]interface{}) ([]Flag, error) {
+	properties, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		return []Flag{}, nil
+	}
+
+	requiredSet, err := buildRequiredSet(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	flags := []Flag{}
+	for key, rawProp := range properties {
+		if key == "" {
+			continue
+		}
+		prop, ok := rawProp.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		propType, _ := prop["type"].(string)
+		propFormat, _ := prop["format"].(string)
+
+		var flagType FlagType
+		if propType == "string" && propFormat == "binary" {
+			flagType = FlagTypeFile
+		} else {
+			flagType = mapSchemaType(propType)
+		}
+
+		flags = append(flags, Flag{
+			Name:     key,
+			Type:     flagType,
+			Required: requiredSet[key],
+			Source:   FlagSourceBody,
+		})
+	}
+
+	return flags, nil
 }
 
 // resolveJSONSchema navigates requestBody → content → "application/json" → schema
