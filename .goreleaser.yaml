@@ -11,7 +11,7 @@ builds:
     main: .
     binary: swaggerjack
     ldflags:
-      - -s -w -X github.com/queso/swagger-jack/cmd.version={{.Version}}
+      - -s -w -X github.com/theaiteam-dev/swagger-jack/cmd.version={{.Version}}
     env:
       - CGO_ENABLED=0
     goos:

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queso/swagger-jack/internal/preserve"
+	"github.com/theaiteam-dev/swagger-jack/internal/preserve"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

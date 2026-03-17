@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queso/swagger-jack/internal/model"
+	"github.com/theaiteam-dev/swagger-jack/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

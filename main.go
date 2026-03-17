@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/queso/swagger-jack/cmd"
+	"github.com/theaiteam-dev/swagger-jack/cmd"
 )
 
 func main() {

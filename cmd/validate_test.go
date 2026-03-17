@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/queso/swagger-jack/cmd"
+	"github.com/theaiteam-dev/swagger-jack/cmd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

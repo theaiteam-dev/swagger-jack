@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/queso/swagger-jack/internal/model"
+	"github.com/theaiteam-dev/swagger-jack/internal/model"
 )
 
 // codeWriter is a small helper for building indented Go source code.

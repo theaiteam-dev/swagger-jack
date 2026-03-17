@@ -3,7 +3,7 @@ package generator
 import (
 	"path/filepath"
 
-	"github.com/queso/swagger-jack/internal/model"
+	"github.com/theaiteam-dev/swagger-jack/internal/model"
 )
 
 // Preview returns the list of file paths that Generate would create for the

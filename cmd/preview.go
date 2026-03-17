@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/queso/swagger-jack/internal/generator"
-	"github.com/queso/swagger-jack/internal/model"
-	"github.com/queso/swagger-jack/internal/parser"
+	"github.com/theaiteam-dev/swagger-jack/internal/generator"
+	"github.com/theaiteam-dev/swagger-jack/internal/model"
+	"github.com/theaiteam-dev/swagger-jack/internal/parser"
 	"github.com/spf13/cobra"
 )
 

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/pmezard/go-difflib/difflib"
-	"github.com/queso/swagger-jack/internal/generator"
-	"github.com/queso/swagger-jack/internal/model"
-	"github.com/queso/swagger-jack/internal/parser"
-	"github.com/queso/swagger-jack/internal/preserve"
+	"github.com/theaiteam-dev/swagger-jack/internal/generator"
+	"github.com/theaiteam-dev/swagger-jack/internal/model"
+	"github.com/theaiteam-dev/swagger-jack/internal/parser"
+	"github.com/theaiteam-dev/swagger-jack/internal/preserve"
 	"github.com/spf13/cobra"
 )
 
